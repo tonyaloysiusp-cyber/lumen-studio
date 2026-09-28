@@ -1,10 +1,10 @@
 // ---------------------------------------------------------------------
 // engine/history/HistoryManager.ts
-// Real, memory-capped undo/redo over a command stack -- not tied to any
-// UI action yet (Phase 1 has no editable operation that produces a
-// command; that starts with Phase 2's layer operations), but built and
-// tested now so every later phase's edits plug into one already-proven
-// mechanism instead of each inventing its own undo logic.
+// Real, memory-capped undo/redo over a command stack. Built in Phase 1
+// with no editable operation to plug in yet; Phase 2's layer commands are
+// the first real consumer, including jumpTo() for a clickable History
+// panel (Photoshop-style: click any past or future entry to revert to
+// exactly that state).
 // ---------------------------------------------------------------------
 
 import type { Command } from './Command';
@@ -57,8 +57,39 @@ export class HistoryManager<S> {
     this.redoStack = [];
   }
 
-  /** Command labels, oldest first -- backs the History panel in a later phase. */
+  /** Command labels, oldest first. The current position is always "after the last entry". */
   get entries(): readonly string[] {
     return this.undoStack.map((c) => c.label);
+  }
+
+  /** Redo-stack labels, nearest-future first -- the History panel's "steps you've undone" section. */
+  get redoEntries(): readonly string[] {
+    return [...this.redoStack].reverse().map((c) => c.label);
+  }
+
+  /**
+   * Reverts/replays to the state right after the undo-stack command at `index`
+   * (0 = oldest), or index -1 for the original state before any command --
+   * exactly what clicking an entry in a History panel means. Returns null if
+   * `index` is already the current position.
+   */
+  jumpTo(state: S, index: number): S | null {
+    const currentIndex = this.undoStack.length - 1;
+    if (index === currentIndex) return null;
+    let result = state;
+    if (index < currentIndex) {
+      for (let i = currentIndex; i > index; i--) {
+        const command = this.undoStack.pop()!;
+        this.redoStack.push(command);
+        result = command.undo(result);
+      }
+    } else {
+      for (let i = currentIndex; i < index; i++) {
+        const command = this.redoStack.pop()!;
+        this.undoStack.push(command);
+        result = command.do(result);
+      }
+    }
+    return result;
   }
 }

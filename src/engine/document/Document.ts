@@ -8,6 +8,13 @@
 
 import type { LumenDocument, Layer, RasterLayer, ColorMode } from './types';
 
+function transparentBitmap(width: number, height: number): Promise<ImageBitmap> {
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(width));
+  canvas.height = Math.max(1, Math.round(height));
+  return createImageBitmap(canvas);
+}
+
 let idCounter = 0;
 /** Monotonic-within-session ids -- good enough for local documents/layers; a real backend id scheme can replace this later without touching call sites. */
 export function nextId(prefix: string): string {
@@ -52,6 +59,29 @@ export function createRasterLayer(bitmap: ImageBitmap, name: string): RasterLaye
     opacity: 1,
     visible: true,
     locked: false,
+    blendMode: 'normal',
+  };
+}
+
+/** A fully transparent raster layer sized to the document -- what "New Layer" creates. Async because there's no synchronous way to produce an ImageBitmap. */
+export async function createBlankRasterLayer(doc: LumenDocument, name: string): Promise<RasterLayer> {
+  const bitmap = await transparentBitmap(doc.width, doc.height);
+  return createRasterLayer(bitmap, name);
+}
+
+/** A real pixel-for-pixel copy of `layer` (own id, own bitmap -- not a reference to the source's) with "copy" appended to its name, matching every layer-based editor's Duplicate Layer convention. */
+export async function duplicateRasterLayer(layer: RasterLayer): Promise<RasterLayer> {
+  const canvas = document.createElement('canvas');
+  canvas.width = layer.bitmap.width;
+  canvas.height = layer.bitmap.height;
+  const ctx = canvas.getContext('2d')!;
+  ctx.drawImage(layer.bitmap, 0, 0);
+  const bitmap = await createImageBitmap(canvas);
+  return {
+    ...layer,
+    id: nextId('layer'),
+    name: `${layer.name} copy`,
+    bitmap,
   };
 }
 

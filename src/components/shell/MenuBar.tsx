@@ -1,11 +1,10 @@
 // ---------------------------------------------------------------------
 // components/shell/MenuBar.tsx
-// The nine menus the product spec calls for. Only File/View/Window have
-// real items in Phase 1; Edit's Undo/Redo are real infrastructure
-// (HistoryManager) but correctly disabled since nothing yet produces a
-// command; Image/Layer/Select/Filter are disabled placeholders naming
-// their phase; Help is a placeholder until the shortcut cheat-sheet /
-// command palette land.
+// The nine menus the product spec calls for. File/View/Window/Edit/Layer
+// have real items as of Phase 2 (Undo/Redo carry the actual next
+// command's label, same as every real editor's Edit menu); Image/Select/
+// Filter are disabled placeholders naming their phase; Help is a
+// placeholder until the shortcut cheat-sheet / command palette land.
 // ---------------------------------------------------------------------
 
 import { Menu, type MenuItem } from '../common/Menu';
@@ -13,6 +12,12 @@ import { useUIStore } from '../../store/useUIStore';
 
 interface MenuBarProps {
   hasActiveDocument: boolean;
+  hasActiveLayer: boolean;
+  canDeleteActiveLayer: boolean;
+  canUndo: boolean;
+  canRedo: boolean;
+  undoLabel: string | null;
+  redoLabel: string | null;
   onNewDocument: () => void;
   onOpenFile: () => void;
   onExportPNG: () => void;
@@ -22,10 +27,23 @@ interface MenuBarProps {
   onZoomOut: () => void;
   onZoomToFit: () => void;
   onZoomTo100: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  onNewLayer: () => void;
+  onDuplicateLayer: () => void;
+  onDeleteLayer: () => void;
+  onShowLayersPanel: () => void;
+  onShowHistoryPanel: () => void;
 }
 
 export function MenuBar({
   hasActiveDocument,
+  hasActiveLayer,
+  canDeleteActiveLayer,
+  canUndo,
+  canRedo,
+  undoLabel,
+  redoLabel,
   onNewDocument,
   onOpenFile,
   onExportPNG,
@@ -35,6 +53,13 @@ export function MenuBar({
   onZoomOut,
   onZoomToFit,
   onZoomTo100,
+  onUndo,
+  onRedo,
+  onNewLayer,
+  onDuplicateLayer,
+  onDeleteLayer,
+  onShowLayersPanel,
+  onShowHistoryPanel,
 }: MenuBarProps) {
   const theme = useUIStore((s) => s.theme);
   const toggleTheme = useUIStore((s) => s.toggleTheme);
@@ -52,8 +77,8 @@ export function MenuBar({
   ];
 
   const editItems: MenuItem[] = [
-    { label: 'Undo', shortcut: '⌘Z', disabled: true, disabledReason: 'Nothing to undo yet' },
-    { label: 'Redo', shortcut: '⌘⇧Z', disabled: true, disabledReason: 'Nothing to redo yet' },
+    { label: undoLabel ? `Undo ${undoLabel}` : 'Undo', shortcut: '⌘Z', onSelect: onUndo, disabled: !canUndo, disabledReason: canUndo ? undefined : 'Nothing to undo yet' },
+    { label: redoLabel ? `Redo ${redoLabel}` : 'Redo', shortcut: '⌘⇧Z', onSelect: onRedo, disabled: !canRedo, disabledReason: canRedo ? undefined : 'Nothing to redo yet' },
     { label: 'Cut / Copy / Paste', disabled: true, disabledReason: 'Phase 3', separatorBefore: true },
     { label: 'Preferences...', disabled: true, disabledReason: 'Phase 9', separatorBefore: true },
   ];
@@ -65,9 +90,10 @@ export function MenuBar({
   ];
 
   const layerItems: MenuItem[] = [
-    { label: 'New Layer', disabled: true, disabledReason: 'Phase 2' },
-    { label: 'Duplicate Layer', disabled: true, disabledReason: 'Phase 2' },
-    { label: 'Layer Mask', disabled: true, disabledReason: 'Phase 7' },
+    { label: 'New Layer', shortcut: '⇧⌘N', onSelect: onNewLayer, disabled: !hasActiveDocument },
+    { label: 'Duplicate Layer', onSelect: onDuplicateLayer, disabled: !hasActiveLayer },
+    { label: 'Delete Layer', onSelect: onDeleteLayer, disabled: !canDeleteActiveLayer },
+    { label: 'Layer Mask', disabled: true, disabledReason: 'Phase 7', separatorBefore: true },
     { label: 'Layer Style', disabled: true, disabledReason: 'Phase 7' },
   ];
 
@@ -88,15 +114,15 @@ export function MenuBar({
     { label: 'Zoom Out', shortcut: '⌘−', onSelect: onZoomOut, disabled: !hasActiveDocument },
     { label: 'Fit on Screen', shortcut: '⌘0', onSelect: onZoomToFit, disabled: !hasActiveDocument },
     { label: 'Actual Size (100%)', shortcut: '⌘1', onSelect: onZoomTo100, disabled: !hasActiveDocument },
-    { label: 'Rulers', disabled: true, disabledReason: 'Phase 2', separatorBefore: true },
-    { label: 'Grid', disabled: true, disabledReason: 'Phase 2' },
-    { label: 'Guides', disabled: true, disabledReason: 'Phase 2' },
+    { label: 'Rulers', disabled: true, disabledReason: 'Later phase', separatorBefore: true },
+    { label: 'Grid', disabled: true, disabledReason: 'Later phase' },
+    { label: 'Guides', disabled: true, disabledReason: 'Later phase' },
   ];
 
   const windowItems: MenuItem[] = [
     { label: theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme', onSelect: toggleTheme },
-    { label: 'Layers Panel', disabled: true, disabledReason: 'Phase 2', separatorBefore: true },
-    { label: 'History Panel', disabled: true, disabledReason: 'Phase 2' },
+    { label: 'Layers Panel', onSelect: onShowLayersPanel, disabled: !hasActiveDocument, separatorBefore: true },
+    { label: 'History Panel', onSelect: onShowHistoryPanel, disabled: !hasActiveDocument },
   ];
 
   const helpItems: MenuItem[] = [

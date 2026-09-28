@@ -5,17 +5,29 @@
 // hunting down every React component that reached in directly.
 // ---------------------------------------------------------------------
 
-export type { ColorMode, LayerId, DocumentId, RasterLayer, Layer, LumenDocument } from './document/types';
+export type { ColorMode, BlendMode, LayerId, DocumentId, RasterLayer, Layer, LumenDocument } from './document/types';
 export {
   nextId,
   createBlankDocument,
   createRasterLayer,
+  createBlankRasterLayer,
+  duplicateRasterLayer,
   createDocumentFromImage,
   getActiveLayer,
   withLayers,
   touch,
 } from './document/Document';
 export type { CreateBlankDocumentOptions } from './document/Document';
+export {
+  insertLayerCommand,
+  deleteLayerCommand,
+  reorderLayerCommand,
+  renameLayerCommand,
+  setLayerOpacityCommand,
+  setLayerVisibilityCommand,
+  setLayerLockedCommand,
+  setLayerBlendModeCommand,
+} from './document/commands';
 
 export type { Command } from './history/Command';
 export { HistoryManager } from './history/HistoryManager';

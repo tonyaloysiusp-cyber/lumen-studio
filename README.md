@@ -4,58 +4,67 @@ A professional, browser-based photo editing workspace. Original name, branding,
 icons, and UI — inspired by pro desktop editors in *capability*, not a visual
 or code copy of any Adobe product.
 
-## Status: Phase 1 of 9 — project setup, layout shell, pan/zoom, open/export
+## Status: Phase 2 of 9 — layers, blend modes, history integration
 
-This is the first of a 9-phase build. Phase 1 delivers a real, working shell:
-opening and exporting images, and a GPU-accelerated canvas you can pan and
-zoom — nothing further. Every tool the eventual product needs is already
-visible in the UI (toolbar, menus) so the full surface is legible, but a tool
-only becomes clickable once the phase that implements it lands; until then
-it's disabled with a tooltip naming which phase adds it. There are no fake
-buttons that look functional but do nothing.
+Phase 1 shipped a real shell (open/export, pan/zoom). Phase 2 makes it an
+actual layer-based editor: real multi-layer documents, GPU blend-mode
+compositing, and an Undo/Redo/History system wired to every edit — not just
+built and left disconnected. Every tool the eventual product needs is already
+visible in the UI so the full surface is legible, but a tool only becomes
+clickable once the phase that implements it lands; until then it's disabled
+with a tooltip naming which phase adds it. There are no fake buttons that
+look functional but do nothing.
 
 ### What's real right now
 
-- **Open an image** — drag-and-drop onto the canvas or the welcome screen,
-  the "Open a photo" button, paste from the clipboard, or File → Open. Decodes
-  via `createImageBitmap`; JPG/PNG/WebP/GIF/BMP/AVIF/SVG all work because the
-  browser decodes them natively. TIFF/HEIC/HEIF are explicitly rejected with a
-  clear error rather than silently failing — no browser decodes them without a
-  WASM decoder, which isn't wired in yet.
-- **Create a blank document** — a custom width/height, or one of ten real
-  presets (Instagram Post/Story, YouTube Thumbnail, X Post, 1080p, 4K UHD,
-  Web, A4/Letter/8×8in at 300 DPI).
-- **Multi-document tabs** — open several documents at once, switch and close
-  them independently, each with its own zoom/pan state.
-- **Pan & zoom** — mouse-wheel pans, Ctrl/Cmd+wheel (and trackpad pinch, which
-  the browser reports the same way) zooms toward the cursor, Space+drag or
-  middle-mouse-drag pans, the Hand tool pans by default, the Zoom tool
-  click-to-zoom-in / Alt-click-to-zoom-out, plus Fit on Screen and Actual Size
-  (100%) from the View menu or the Zoom tool's options bar.
-- **Export** — File → Export as PNG or JPEG renders the document's actual
-  pixels (no checkerboard, no viewport transform baked in) through
-  `canvas.toBlob` and triggers a real file download.
-- **Rendering** — PixiJS on WebGL2, one Sprite per layer (today: always
-  exactly one, since layers land in Phase 2), a checkerboard background so
-  transparency is visually obvious.
-- **Honest tool surface** — Move/Hand/Zoom are the only live tools. Every
-  other tool in the toolbar and every disabled menu item names the exact
-  phase that implements it.
-- **Command-pattern history infrastructure** — `HistoryManager<S>` is built,
-  tested, and memory-capped, ready for Phase 2's real layer-editing commands.
-  Undo/Redo in the Edit menu are correctly disabled ("Nothing to undo yet")
-  rather than wired to nothing.
-- **Dark/light theme toggle** (Window menu), a live status bar (zoom %,
-  document size, color mode, JS heap usage where the browser exposes it).
+**From Phase 1:**
+- Open an image (drag-and-drop, file picker, paste, File → Open); TIFF/HEIC/HEIF
+  explicitly rejected (no browser decoder, none faked)
+- Create a blank document (custom size or 10 real presets)
+- Multi-document tabs, each with independent zoom/pan
+- Pan & zoom: wheel, Ctrl/Cmd+wheel toward cursor, trackpad pinch, Space+drag,
+  middle-mouse-drag, Hand/Zoom tools, Fit/Actual Size
+- Export as PNG/JPEG — real `canvas.toBlob` → file download
+- Dark/light theme toggle
+
+**New in Phase 2:**
+- **Real multi-layer documents** — New Layer (blank transparent, sized to the
+  document), Duplicate Layer (an actual pixel copy, own bitmap), Delete Layer,
+  reorder (up/down), rename (double-click, commit on Enter/blur, Esc cancels),
+  visibility and lock toggles, all from the Layers panel or the Layer menu.
+- **Real GPU blend-mode compositing** — 16 blend modes (Normal, Multiply,
+  Screen, Overlay, Darken, Lighten, Color/Linear Dodge, Color Burn, Hard/Soft
+  Light, Difference, Exclusion, Saturation, Color, Luminosity), each an actual
+  PixiJS shader via its `advanced-blend-modes` package — not a dropdown where
+  only "Normal" does anything.
+- **Real opacity** — a slider that live-previews while dragging and commits
+  exactly one history entry on release (not one entry per pixel of drag).
+- **Undo/Redo that actually works** — every layer edit is a
+  `Command<LumenDocument>` (pure `do`/`undo`) pushed through a real
+  `HistoryManager`. Edit menu shows the actual next command's name ("Undo
+  Rename Layer"), not a generic label. `⌘Z` / `⌘⇧Z` are wired for real.
+- **A clickable History panel** — every past and undone-but-redoable edit is
+  a real row; click any of them to jump straight to that exact document
+  state (`HistoryManager.jumpTo`), the same mechanism a professional editor's
+  History panel uses.
+- **Keyboard shortcuts that fire** — every shortcut label already shown in
+  Phase 1's menus/toolbar (`⌘Z`, `⌘⇧Z`, `⌘+`/`⌘-`/`⌘0`/`⌘1`, `⇧⌘N`, `V`/`H`/`Z`
+  tool switching) is now bound to a real handler. `⌘N`/`⌘O`/`⌘W` still show
+  their desktop-convention labels but aren't interceptable — every browser
+  reserves those at the chrome level (new window / open-file-dialog / close
+  tab) and never even delivers the keydown to page JS; that's a universal
+  browser limitation every web-based editor shares, not something faked here.
+- **Live layer thumbnails** — drawn straight from each layer's own
+  `ImageBitmap`, not a placeholder icon.
 
 ### What's explicitly NOT built yet (by design)
 
-Selection tools, the brush engine, layers panel, adjustments/filters, text
-and shapes, retouching, masks/layer styles, AI tools, color management,
-photo merge, animation, project save/load (`.lumen` format), plugins, touch
-gestures, and PWA installability — all scheduled for Phases 2 through 9 per
-the product roadmap. None of these are stubbed with placeholder UI that
-looks clickable; they're visibly disabled with the phase that adds them.
+Selection tools, the brush engine, adjustments/filters, text and shapes,
+retouching, masks/layer styles, AI tools, color management, photo merge,
+animation, project save/load (`.lumen` format), plugins, touch gestures,
+rulers/grid/guides, and PWA installability — all scheduled for Phases 3
+through 9. None of these are stubbed with placeholder UI that looks
+clickable; they're visibly disabled with the phase that adds them.
 
 ## Architecture
 
@@ -63,34 +72,41 @@ looks clickable; they're visibly disabled with the phase that adds them.
 src/
   engine/          Framework-agnostic TypeScript. No React imports. Unit-tested
                     in isolation. The UI never reaches past engine/index.ts.
-    document/       LumenDocument / Layer data model + pure factory functions
-    history/        Generic Command<S> + HistoryManager<S> (undo/redo)
-    renderer/        Viewport math (pure) + PixiRenderer (the actual WebGL2 canvas)
-    io/              Image import (decode) and export (canvas -> blob -> download)
-    index.ts         The only module src/components and src/store may import from
+    document/       LumenDocument / Layer data model, pure factory functions,
+                    and commands.ts -- every layer edit as a real Command<S>
+    history/        Generic Command<S> + HistoryManager<S> (undo/redo/jumpTo)
+    renderer/       Viewport math (pure) + PixiRenderer (WebGL2 canvas,
+                    real blend-mode shaders via pixi.js/advanced-blend-modes)
+    io/             Image import (decode) and export (canvas -> blob -> download)
+    index.ts        The only module src/components and src/store may import from
 
   store/            Zustand stores. Only ever import from src/engine.
-    useDocumentStore.ts   Open documents, tabs, viewports, async open state
-    useUIStore.ts         Theme, active tool
+    useDocumentStore.ts   Documents, tabs, viewports, one HistoryManager per
+                          document, and every layer/history action
+    useUIStore.ts         Theme, active tool, right-dock visibility/tab
 
   components/
-    shell/           MenuBar, Toolbar, OptionsBar, DocumentTabs, StatusBar, WorkspaceShell
-    canvas/          CanvasStage — mounts PixiRenderer, owns pan/zoom interaction
-    welcome/         WelcomeScreen — new/open/recent + presets gallery
-    common/          Tooltip, IconButton, Menu — shared, accessible primitives
+    shell/          MenuBar, Toolbar, OptionsBar, DocumentTabs, StatusBar,
+                    RightDock, WorkspaceShell, useGlobalShortcuts
+    canvas/         CanvasStage -- mounts PixiRenderer, owns pan/zoom interaction
+    panels/         LayersPanel, HistoryPanel, LayerThumbnail
+    welcome/        WelcomeScreen -- new/open/recent + presets gallery
+    common/         Tooltip, IconButton, Menu -- shared, accessible primitives
 
   config/
     tools.ts         Every tool declared once with a real status (live/planned)
     presets.ts       Document size presets
+    blendModes.ts     Every BlendMode the engine actually supports
 
 tests/
-  engine/            Vitest unit tests for HistoryManager and Viewport math
+  engine/            Vitest unit tests: HistoryManager (incl. jumpTo/redoEntries),
+                     Viewport math, and every layer command (commands.test.ts)
 ```
 
 The engine/UI separation is deliberate: every engine function is pure
-(`(input) -> output`, no hidden mutable state), which makes it trivial to
-unit test and makes Phase 2's history/undo integration straightforward —
-Zustand stores just call engine functions and set the result.
+(`(input) -> output`, no hidden mutable state), which is what makes
+`HistoryManager.jumpTo` — revert/replay to any past or future state — a
+20-line method instead of a redesign.
 
 ## Tech stack
 
@@ -110,8 +126,8 @@ npm run lint      # oxlint
 
 ## Roadmap
 
-1. **Project setup, layout shell, canvas pan/zoom, open/export** ← you are here
-2. Layers, blend modes, history integration
+1. Project setup, layout shell, canvas pan/zoom, open/export
+2. **Layers, blend modes, history integration** ← you are here
 3. Selection tools, brush engine, eraser
 4. Adjustments, filters, Develop panel
 5. Text, shapes, pen tool, transforms

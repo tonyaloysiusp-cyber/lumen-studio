@@ -10,14 +10,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDocumentStore } from '../../store/useDocumentStore';
 import { useUIStore } from '../../store/useUIStore';
-import { zoomAt, fitToContainer, canvasToBlob, downloadBlob, extensionFor, type ExportFormat } from '../../engine';
+import { zoomAt, fitToContainer, canvasToBlob, downloadBlob, extensionFor, getActiveLayer, type ExportFormat } from '../../engine';
 import { MenuBar } from './MenuBar';
 import { Toolbar } from './Toolbar';
 import { OptionsBar } from './OptionsBar';
 import { DocumentTabs } from './DocumentTabs';
 import { StatusBar } from './StatusBar';
+import { RightDock } from './RightDock';
+import { useGlobalShortcuts } from './useGlobalShortcuts';
 import { WelcomeScreen } from '../welcome/WelcomeScreen';
 import { CanvasStage, type CanvasStageHandle } from '../canvas/CanvasStage';
+
+const EMPTY_HISTORY_STATUS = { canUndo: false, canRedo: false, past: [] as string[], future: [] as string[] };
 
 export function WorkspaceShell() {
   const documents = useDocumentStore((s) => s.documents);
@@ -32,7 +36,16 @@ export function WorkspaceShell() {
   const setActiveDocument = useDocumentStore((s) => s.setActiveDocument);
   const setViewport = useDocumentStore((s) => s.setViewport);
   const dismissOpenError = useDocumentStore((s) => s.dismissOpenError);
+  const historyStatusMap = useDocumentStore((s) => s.historyStatus);
+  const undo = useDocumentStore((s) => s.undo);
+  const redo = useDocumentStore((s) => s.redo);
+  const addLayer = useDocumentStore((s) => s.addLayer);
+  const duplicateLayer = useDocumentStore((s) => s.duplicateLayer);
+  const deleteLayer = useDocumentStore((s) => s.deleteLayer);
   const activeTool = useUIStore((s) => s.activeTool);
+  const setActiveTool = useUIStore((s) => s.setActiveTool);
+  const dockVisible = useUIStore((s) => s.dockVisible);
+  const setActiveDockTab = useUIStore((s) => s.setActiveDockTab);
 
   const canvasAreaRef = useRef<HTMLDivElement>(null);
   const canvasStageRef = useRef<CanvasStageHandle>(null);
@@ -43,6 +56,8 @@ export function WorkspaceShell() {
   const activeDocument = activeDocumentId ? (documents[activeDocumentId] ?? null) : null;
   const activeViewport = activeDocumentId ? viewports[activeDocumentId] : undefined;
   const hasActiveDocument = activeDocument !== null;
+  const activeLayer = activeDocument ? getActiveLayer(activeDocument) : null;
+  const historyStatus = (activeDocumentId && historyStatusMap[activeDocumentId]) || EMPTY_HISTORY_STATUS;
 
   const getContainerSize = useCallback(() => {
     const rect = canvasAreaRef.current?.getBoundingClientRect();
@@ -115,10 +130,27 @@ export function WorkspaceShell() {
 
   const zoomPercent = (activeViewport?.scale ?? 1) * 100;
 
+  useGlobalShortcuts({
+    onUndo: () => activeDocumentId && undo(activeDocumentId),
+    onRedo: () => activeDocumentId && redo(activeDocumentId),
+    onSelectTool: setActiveTool,
+    onZoomIn: () => zoomStep(1.25),
+    onZoomOut: () => zoomStep(0.8),
+    onZoomToFit: zoomToFit,
+    onZoomTo100: zoomTo100,
+    onNewLayer: () => activeDocumentId && addLayer(activeDocumentId),
+  });
+
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-neutral-950 text-neutral-100">
       <MenuBar
         hasActiveDocument={hasActiveDocument}
+        hasActiveLayer={activeLayer !== null}
+        canDeleteActiveLayer={activeLayer !== null && (activeDocument?.layers.length ?? 0) > 1}
+        canUndo={historyStatus.canUndo}
+        canRedo={historyStatus.canRedo}
+        undoLabel={historyStatus.past[historyStatus.past.length - 1] ?? null}
+        redoLabel={historyStatus.future[0] ?? null}
         onNewDocument={() => setShowNewDocOverlay(true)}
         onOpenFile={() => fileInputRef.current?.click()}
         onExportPNG={() => handleExport('png')}
@@ -128,6 +160,13 @@ export function WorkspaceShell() {
         onZoomOut={() => zoomStep(0.8)}
         onZoomToFit={zoomToFit}
         onZoomTo100={zoomTo100}
+        onUndo={() => activeDocumentId && undo(activeDocumentId)}
+        onRedo={() => activeDocumentId && redo(activeDocumentId)}
+        onNewLayer={() => activeDocumentId && addLayer(activeDocumentId)}
+        onDuplicateLayer={() => activeDocumentId && activeLayer && duplicateLayer(activeDocumentId, activeLayer.id)}
+        onDeleteLayer={() => activeDocumentId && activeLayer && deleteLayer(activeDocumentId, activeLayer.id)}
+        onShowLayersPanel={() => setActiveDockTab('layers')}
+        onShowHistoryPanel={() => setActiveDockTab('history')}
       />
       <input
         ref={fileInputRef}
@@ -203,6 +242,14 @@ export function WorkspaceShell() {
           </div>
           <StatusBar document={activeDocument} zoomPercent={zoomPercent} />
         </div>
+        {activeDocument && dockVisible && (
+          <RightDock
+            docId={activeDocument.id}
+            layers={activeDocument.layers}
+            activeLayerId={activeDocument.activeLayerId}
+            historyStatus={historyStatus}
+          />
+        )}
       </div>
     </div>
   );

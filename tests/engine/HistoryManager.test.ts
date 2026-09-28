@@ -97,4 +97,52 @@ describe('HistoryManager', () => {
     expect(() => new HistoryManager<number>(0)).toThrow();
     expect(() => new HistoryManager<number>(-1)).toThrow();
   });
+
+  describe('redoEntries', () => {
+    it('lists undone commands nearest-future first', () => {
+      const history = new HistoryManager<number>();
+      let state = 0;
+      state = history.execute(state, addCommand(1));
+      state = history.execute(state, addCommand(2));
+      state = history.execute(state, addCommand(3));
+      history.undo(state); // undoes "add 3"
+      // nearest future step is "add 3" (redo would reapply it first), then "add 2" is NOT undone yet here
+      expect(history.redoEntries).toEqual(['add 3']);
+    });
+  });
+
+  describe('jumpTo', () => {
+    it('jumps forward from an earlier position to a later one (equivalent to repeated redo)', () => {
+      const history = new HistoryManager<number>();
+      let state = 0;
+      state = history.execute(state, addCommand(1)); // index 0 -> state 1
+      state = history.execute(state, addCommand(2)); // index 1 -> state 3
+      state = history.execute(state, addCommand(3)); // index 2 -> state 6
+      state = history.jumpTo(state, 0)!; // back to right after "add 1"
+      expect(state).toBe(1);
+      expect(history.canRedo()).toBe(true);
+
+      const jumped = history.jumpTo(state, 2)!; // forward to right after "add 3"
+      expect(jumped).toBe(6);
+      expect(history.canRedo()).toBe(false);
+    });
+
+    it('jumps to -1 for the original state before any command', () => {
+      const history = new HistoryManager<number>();
+      let state = 0;
+      state = history.execute(state, addCommand(5));
+      state = history.execute(state, addCommand(10));
+      const original = history.jumpTo(state, -1)!;
+      expect(original).toBe(0);
+      expect(history.canUndo()).toBe(false);
+      expect(history.canRedo()).toBe(true);
+      expect(history.redoEntries).toEqual(['add 5', 'add 10']);
+    });
+
+    it('returns null when jumping to the current position', () => {
+      const history = new HistoryManager<number>();
+      const state = history.execute(0, addCommand(1));
+      expect(history.jumpTo(state, 0)).toBeNull();
+    });
+  });
 });

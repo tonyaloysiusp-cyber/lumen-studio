@@ -1,16 +1,39 @@
 // ---------------------------------------------------------------------
 // engine/document/types.ts
-// Core document data model. Deliberately scoped to what Phase 1 actually
-// implements (a single raster layer, opened from an image file) rather
-// than pre-declaring layer kinds (text/shape/adjustment/group) that
-// don't exist yet — those are added for real in the phase that builds
-// them, not stubbed in advance.
+// Core document data model. Phase 1 scoped this to a single raster layer;
+// Phase 2 adds real multi-layer support and blend modes, still without
+// pre-declaring layer kinds (text/shape/adjustment/group) that don't
+// exist yet -- those are added for real in the phase that builds them.
 // ---------------------------------------------------------------------
 
 export type ColorMode = 'rgb' | 'grayscale';
 
 export type LayerId = string;
 export type DocumentId = string;
+
+/**
+ * Every value here is a blend mode PixiJS actually implements as a real GPU
+ * shader (via its advanced-blend-modes package, registered once in
+ * PixiRenderer) -- not a subset that looks complete in a dropdown but only
+ * partially works.
+ */
+export type BlendMode =
+  | 'normal'
+  | 'multiply'
+  | 'screen'
+  | 'overlay'
+  | 'darken'
+  | 'lighten'
+  | 'color-dodge'
+  | 'color-burn'
+  | 'hard-light'
+  | 'soft-light'
+  | 'difference'
+  | 'exclusion'
+  | 'saturation'
+  | 'color'
+  | 'luminosity'
+  | 'add';
 
 export interface RasterLayer {
   id: LayerId;
@@ -26,9 +49,10 @@ export interface RasterLayer {
   opacity: number; // 0..1
   visible: boolean;
   locked: boolean;
+  blendMode: BlendMode;
 }
 
-/** Widened intentionally so Phase 2's layer kinds can be added as real union members later. */
+/** Widened intentionally so later phases' layer kinds can be added as real union members. */
 export type Layer = RasterLayer;
 
 export interface LumenDocument {

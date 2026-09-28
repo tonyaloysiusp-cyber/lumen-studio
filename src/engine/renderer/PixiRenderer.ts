@@ -4,12 +4,14 @@
 // Owns exactly two things: a checkerboard background sized to the
 // document (so transparency is visually obvious, matching every raster
 // editor's convention) and a layers container holding one Sprite per
-// raster layer. Blend-mode shaders and multi-layer compositing land in
-// Phase 2 once there's a real layer stack to composite; Phase 1 only
-// ever has the single layer an opened image produces.
+// raster layer, composited with real GPU blend-mode shaders (Phase 2).
 // ---------------------------------------------------------------------
 
 import { Application, Container, Sprite, Texture, TilingSprite } from 'pixi.js';
+// Side-effect import: registers the shader-based blend modes (multiply,
+// screen, overlay, color-dodge, etc.) as real GPU blending, not a fake
+// dropdown of options that only "normal" actually does anything for.
+import 'pixi.js/advanced-blend-modes';
 import type { LumenDocument } from '../document/types';
 import type { Viewport } from './Viewport';
 
@@ -84,25 +86,30 @@ export class PixiRenderer {
     this.worldContainer.scale.set(viewport.scale);
   }
 
-  /** Syncs the checkerboard + one Sprite per raster layer to the document's current state. Cheap to call every frame -- only touches what actually changed. */
+  /** Syncs the checkerboard + one Sprite per raster layer (position, visibility, opacity, blend mode, and stacking order) to the document's current state. Cheap to call every frame -- only touches what actually changed. */
   renderDocument(doc: LumenDocument): void {
     if (!this.checkerboard || !this.layersContainer) return;
     this.checkerboard.width = doc.width;
     this.checkerboard.height = doc.height;
 
     const seen = new Set<string>();
-    for (const layer of doc.layers) {
+    doc.layers.forEach((layer, index) => {
       seen.add(layer.id);
       let sprite = this.layerSprites.get(layer.id);
       if (!sprite) {
         sprite = new Sprite(Texture.from(layer.bitmap));
         this.layerSprites.set(layer.id, sprite);
-        this.layersContainer.addChild(sprite);
+        this.layersContainer!.addChild(sprite);
       }
       sprite.position.set(layer.x, layer.y);
       sprite.visible = layer.visible;
       sprite.alpha = layer.opacity;
-    }
+      sprite.blendMode = layer.blendMode;
+      // Bottom-to-top array order must match child order for compositing/reordering to render correctly.
+      if (this.layersContainer!.getChildIndex(sprite) !== index) {
+        this.layersContainer!.setChildIndex(sprite, index);
+      }
+    });
     for (const [id, sprite] of this.layerSprites) {
       if (!seen.has(id)) {
         sprite.destroy();
